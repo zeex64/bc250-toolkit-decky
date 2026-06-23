@@ -38,18 +38,9 @@ interface SystemStatus {
   tweaks_last_update?: string;
 }
 
-type Tab = "games" | "system" | "settings";
+type TabId = "games" | "system" | "settings";
 
 // ── Steam helpers ─────────────────────────────────────────────────────────────
-
-function getCurrentAppId(): number | null {
-  try {
-    const hash = window.location.hash;
-    const m = hash.match(/\/app\/(\d+)/);
-    if (m) return parseInt(m[1], 10);
-  } catch (_) {}
-  return null;
-}
 
 async function setLaunchOptions(appId: number, opts: string): Promise<boolean> {
   try {
@@ -74,46 +65,52 @@ async function setCompatTool(appId: number, protonName: string): Promise<boolean
   }
 }
 
-// ── Tab styles ────────────────────────────────────────────────────────────────
-
-const tabBtnStyle = (active: boolean): React.CSSProperties => ({
-  flex: 1,
-  padding: "6px 4px",
-  fontSize: "12px",
-  fontWeight: active ? "bold" : "normal",
-  color: active ? "#fff" : "#aaa",
-  background: active ? "rgba(255,255,255,0.12)" : "transparent",
-  border: "none",
-  borderBottom: active ? "2px solid #67a3ff" : "2px solid transparent",
-  cursor: "pointer",
-  textAlign: "center",
-});
-
 // ── Onglet Jeux ───────────────────────────────────────────────────────────────
 
+interface InstalledEntry {
+  appid: number;
+  name: string;
+  game: GameEntry;
+}
+
+function getInstalledDbGames(gamesDb: GamesDB): InstalledEntry[] {
+  try {
+    const allApps: any[] = (window as any).appStore?.allApps ?? [];
+    return allApps
+      .filter((app: any) => {
+        if (!app?.installed) return false;
+        const entry = gamesDb[String(app.appid)];
+        return entry && "proton" in entry;
+      })
+      .map((app: any) => ({
+        appid: app.appid as number,
+        name: (app.display_name ?? app.strDisplayName ?? `App ${app.appid}`) as string,
+        game: gamesDb[String(app.appid)] as GameEntry,
+      }));
+  } catch (_) {
+    return [];
+  }
+}
+
 function GamesTab({ gamesDb, autoApply }: { gamesDb: GamesDB; autoApply: boolean }) {
-  const [appId, setAppId] = useState<number | null>(null);
-  const [game, setGame] = useState<GameEntry | null>(null);
+  const [installed, setInstalled] = useState<InstalledEntry[]>([]);
+  const [selected, setSelected] = useState<InstalledEntry | null>(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
   const gameCount = Object.keys(gamesDb).filter((k) => !k.startsWith("_")).length;
 
   const refresh = useCallback(() => {
-    const id = getCurrentAppId();
-    setAppId(id);
-    if (id) {
-      const entry = gamesDb[String(id)];
-      setGame(entry && "proton" in entry ? (entry as GameEntry) : null);
-    } else {
-      setGame(null);
-    }
+    const list = getInstalledDbGames(gamesDb);
+    setInstalled(list);
+    // Si le jeu sélectionné n'est plus dans la liste, désélectionner
+    setSelected((prev) => prev && list.find((e) => e.appid === prev.appid) ? prev : null);
     setApplied(false);
   }, [gamesDb]);
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 3000);
+    const t = setInterval(refresh, 5000);
     return () => clearInterval(t);
   }, [refresh]);
 
@@ -138,11 +135,11 @@ function GamesTab({ gamesDb, autoApply }: { gamesDb: GamesDB; autoApply: boolean
   }, [autoApply, gamesDb]);
 
   const handleApply = async () => {
-    if (!appId || !game) return;
+    if (!selected) return;
     setApplying(true);
     try {
-      const okL = await setLaunchOptions(appId, game.launch_options);
-      const okP = await setCompatTool(appId, game.proton);
+      const okL = await setLaunchOptions(selected.appid, selected.game.launch_options);
+      const okP = await setCompatTool(selected.appid, selected.game.proton);
       setApplied(okL);
       toaster.toast({
         title: "BC250 Toolkit",
@@ -160,39 +157,68 @@ function GamesTab({ gamesDb, autoApply }: { gamesDb: GamesDB; autoApply: boolean
     <>
       <PanelSection>
         <PanelSectionRow>
-          <Field label="Jeux dans la DB" description="Jeux optimisés pour BC-250">
-            <span style={{ color: "#67a3ff", fontWeight: "bold" }}>{gameCount}</span>
+          <Field label="DB" description="Jeux optimisés pour BC-250">
+            <span style={{ color: "#67a3ff", fontWeight: "bold" }}>{gameCount} jeux</span>
           </Field>
         </PanelSectionRow>
       </PanelSection>
 
-      {game ? (
-        <PanelSection title={game.name}>
+      {installed.length > 0 ? (
+        <PanelSection title="Installés et compatibles">
+          {installed.map((entry) => {
+            const isSelected = selected?.appid === entry.appid;
+            return (
+              <PanelSectionRow key={entry.appid}>
+                <ButtonItem
+                  layout="below"
+                  onClick={() => { setSelected(isSelected ? null : entry); setApplied(false); }}
+                  style={isSelected ? { color: "#67a3ff", fontWeight: "bold" } : { opacity: 0.8 }}
+                >
+                  {isSelected ? `▶ ${entry.name}` : entry.name}
+                </ButtonItem>
+              </PanelSectionRow>
+            );
+          })}
+        </PanelSection>
+      ) : (
+        <PanelSection>
           <PanelSectionRow>
-            <Field label="Proton recommandé">
+            <Field>
+              <div style={{ color: "#888", fontSize: "12px", textAlign: "center", padding: "8px 0" }}>
+                Aucun jeu de la DB installé
+              </div>
+            </Field>
+          </PanelSectionRow>
+        </PanelSection>
+      )}
+
+      {selected && (
+        <PanelSection title="Settings à appliquer">
+          <PanelSectionRow>
+            <Field label="Proton">
               <span style={{ fontSize: "12px" }}>
-                {game.proton}{game.proton_branch ? ` — ${game.proton_branch}` : ""}
+                {selected.game.proton}{selected.game.proton_branch ? ` — ${selected.game.proton_branch}` : ""}
               </span>
             </Field>
           </PanelSectionRow>
-          {game.proton_note && (
+          {selected.game.proton_note && (
             <PanelSectionRow>
               <Field>
-                <div style={{ fontSize: "11px", color: "#ff9800", lineHeight: "1.4" }}>{game.proton_note}</div>
+                <div style={{ fontSize: "11px", color: "#ff9800", lineHeight: "1.4" }}>{selected.game.proton_note}</div>
               </Field>
             </PanelSectionRow>
           )}
           <PanelSectionRow>
             <Field label="Launch options">
               <div style={{ fontSize: "10px", wordBreak: "break-all", color: "#aaa", lineHeight: "1.4" }}>
-                {game.launch_options}
+                {selected.game.launch_options}
               </div>
             </Field>
           </PanelSectionRow>
-          {game.notes && (
+          {selected.game.notes && (
             <PanelSectionRow>
               <Field label="Notes">
-                <div style={{ fontSize: "11px", color: "#ccc" }}>{game.notes}</div>
+                <div style={{ fontSize: "11px", color: "#ccc" }}>{selected.game.notes}</div>
               </Field>
             </PanelSectionRow>
           )}
@@ -200,16 +226,6 @@ function GamesTab({ gamesDb, autoApply }: { gamesDb: GamesDB; autoApply: boolean
             <ButtonItem layout="below" disabled={applying || applied} onClick={handleApply}>
               {applying ? "Application..." : applied ? "✓ Appliqué" : "Appliquer les settings BC-250"}
             </ButtonItem>
-          </PanelSectionRow>
-        </PanelSection>
-      ) : (
-        <PanelSection>
-          <PanelSectionRow>
-            <Field>
-              <div style={{ color: "#888", fontSize: "12px", textAlign: "center", padding: "8px 0" }}>
-                {appId ? "Jeu non référencé dans la DB BC-250" : "Sélectionne un jeu dans la bibliothèque"}
-              </div>
-            </Field>
           </PanelSectionRow>
         </PanelSection>
       )}
@@ -382,10 +398,36 @@ function SettingsTab({
   );
 }
 
+// ── Barre d'onglets (ButtonItem = navigation manette garantie) ────────────────
+
+const TAB_DEFS: Array<{ id: TabId; label: string }> = [
+  { id: "games", label: "Jeux" },
+  { id: "system", label: "Système" },
+  { id: "settings", label: "Réglages" },
+];
+
+function TabBar({ tab, setTab }: { tab: TabId; setTab: (t: TabId) => void }) {
+  return (
+    <PanelSection>
+      {TAB_DEFS.map(({ id, label }) => (
+        <PanelSectionRow key={id}>
+          <ButtonItem
+            layout="below"
+            onClick={() => setTab(id)}
+            style={tab === id ? { color: "#67a3ff", fontWeight: "bold" } : { opacity: 0.6 }}
+          >
+            {tab === id ? `▶ ${label}` : label}
+          </ButtonItem>
+        </PanelSectionRow>
+      ))}
+    </PanelSection>
+  );
+}
+
 // ── Plugin principal ──────────────────────────────────────────────────────────
 
 function Content() {
-  const [tab, setTab] = useState<Tab>("games");
+  const [tab, setTab] = useState<TabId>("games");
   const [autoApply, setAutoApply] = useState(false);
   const [gamesDb, setGamesDb] = useState<GamesDB>({});
   const [dbLoaded, setDbLoaded] = useState(false);
@@ -406,14 +448,8 @@ function Content() {
   if (!dbLoaded) return <SteamSpinner />;
 
   return (
-    <div>
-      {/* Barre d'onglets manuelle */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: "4px" }}>
-        <button style={tabBtnStyle(tab === "games")}   onClick={() => setTab("games")}>Jeux</button>
-        <button style={tabBtnStyle(tab === "system")}  onClick={() => setTab("system")}>Système</button>
-        <button style={tabBtnStyle(tab === "settings")} onClick={() => setTab("settings")}>Réglages</button>
-      </div>
-
+    <>
+      <TabBar tab={tab} setTab={setTab} />
       {tab === "games" && <GamesTab gamesDb={gamesDb} autoApply={autoApply} />}
       {tab === "system" && <SystemTab />}
       {tab === "settings" && (
@@ -424,7 +460,7 @@ function Content() {
           onRefreshDb={refreshDb}
         />
       )}
-    </div>
+    </>
   );
 }
 

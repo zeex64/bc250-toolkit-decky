@@ -86,16 +86,6 @@ const definePlugin = (fn) => {
 };
 
 // ── Steam helpers ─────────────────────────────────────────────────────────────
-function getCurrentAppId() {
-    try {
-        const hash = window.location.hash;
-        const m = hash.match(/\/app\/(\d+)/);
-        if (m)
-            return parseInt(m[1], 10);
-    }
-    catch (_) { }
-    return null;
-}
 async function setLaunchOptions(appId, opts) {
     try {
         await window.SteamClient.Apps.SetLaunchOptions(appId, opts);
@@ -118,41 +108,42 @@ async function setCompatTool(appId, protonName) {
         return false;
     }
 }
-// ── Tab styles ────────────────────────────────────────────────────────────────
-const tabBtnStyle = (active) => ({
-    flex: 1,
-    padding: "6px 4px",
-    fontSize: "12px",
-    fontWeight: active ? "bold" : "normal",
-    color: active ? "#fff" : "#aaa",
-    background: active ? "rgba(255,255,255,0.12)" : "transparent",
-    border: "none",
-    borderBottom: active ? "2px solid #67a3ff" : "2px solid transparent",
-    cursor: "pointer",
-    textAlign: "center",
-});
-// ── Onglet Jeux ───────────────────────────────────────────────────────────────
+function getInstalledDbGames(gamesDb) {
+    try {
+        const allApps = window.appStore?.allApps ?? [];
+        return allApps
+            .filter((app) => {
+            if (!app?.installed)
+                return false;
+            const entry = gamesDb[String(app.appid)];
+            return entry && "proton" in entry;
+        })
+            .map((app) => ({
+            appid: app.appid,
+            name: (app.display_name ?? app.strDisplayName ?? `App ${app.appid}`),
+            game: gamesDb[String(app.appid)],
+        }));
+    }
+    catch (_) {
+        return [];
+    }
+}
 function GamesTab({ gamesDb, autoApply }) {
-    const [appId, setAppId] = SP_REACT.useState(null);
-    const [game, setGame] = SP_REACT.useState(null);
+    const [installed, setInstalled] = SP_REACT.useState([]);
+    const [selected, setSelected] = SP_REACT.useState(null);
     const [applying, setApplying] = SP_REACT.useState(false);
     const [applied, setApplied] = SP_REACT.useState(false);
     const gameCount = Object.keys(gamesDb).filter((k) => !k.startsWith("_")).length;
     const refresh = SP_REACT.useCallback(() => {
-        const id = getCurrentAppId();
-        setAppId(id);
-        if (id) {
-            const entry = gamesDb[String(id)];
-            setGame(entry && "proton" in entry ? entry : null);
-        }
-        else {
-            setGame(null);
-        }
+        const list = getInstalledDbGames(gamesDb);
+        setInstalled(list);
+        // Si le jeu sélectionné n'est plus dans la liste, désélectionner
+        setSelected((prev) => prev && list.find((e) => e.appid === prev.appid) ? prev : null);
         setApplied(false);
     }, [gamesDb]);
     SP_REACT.useEffect(() => {
         refresh();
-        const t = setInterval(refresh, 3000);
+        const t = setInterval(refresh, 5000);
         return () => clearInterval(t);
     }, [refresh]);
     // Auto-apply au lancement d'un jeu
@@ -183,12 +174,12 @@ function GamesTab({ gamesDb, autoApply }) {
         catch (_) { } };
     }, [autoApply, gamesDb]);
     const handleApply = async () => {
-        if (!appId || !game)
+        if (!selected)
             return;
         setApplying(true);
         try {
-            const okL = await setLaunchOptions(appId, game.launch_options);
-            const okP = await setCompatTool(appId, game.proton);
+            const okL = await setLaunchOptions(selected.appid, selected.game.launch_options);
+            const okP = await setCompatTool(selected.appid, selected.game.proton);
             setApplied(okL);
             toaster.toast({
                 title: "BC250 Toolkit",
@@ -202,7 +193,10 @@ function GamesTab({ gamesDb, autoApply }) {
             setApplying(false);
         }
     };
-    return (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Jeux dans la DB", description: "Jeux optimis\u00E9s pour BC-250", children: SP_JSX.jsx("span", { style: { color: "#67a3ff", fontWeight: "bold" }, children: gameCount }) }) }) }), game ? (SP_JSX.jsxs(DFL.PanelSection, { title: game.name, children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Proton recommand\u00E9", children: SP_JSX.jsxs("span", { style: { fontSize: "12px" }, children: [game.proton, game.proton_branch ? ` — ${game.proton_branch}` : ""] }) }) }), game.proton_note && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#ff9800", lineHeight: "1.4" }, children: game.proton_note }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Launch options", children: SP_JSX.jsx("div", { style: { fontSize: "10px", wordBreak: "break-all", color: "#aaa", lineHeight: "1.4" }, children: game.launch_options }) }) }), game.notes && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Notes", children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#ccc" }, children: game.notes }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: applying || applied, onClick: handleApply, children: applying ? "Application..." : applied ? "✓ Appliqué" : "Appliquer les settings BC-250" }) })] })) : (SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { children: SP_JSX.jsx("div", { style: { color: "#888", fontSize: "12px", textAlign: "center", padding: "8px 0" }, children: appId ? "Jeu non référencé dans la DB BC-250" : "Sélectionne un jeu dans la bibliothèque" }) }) }) })), SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: refresh, children: "Rafra\u00EEchir" }) }) })] }));
+    return (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "DB", description: "Jeux optimis\u00E9s pour BC-250", children: SP_JSX.jsxs("span", { style: { color: "#67a3ff", fontWeight: "bold" }, children: [gameCount, " jeux"] }) }) }) }), installed.length > 0 ? (SP_JSX.jsx(DFL.PanelSection, { title: "Install\u00E9s et compatibles", children: installed.map((entry) => {
+                    const isSelected = selected?.appid === entry.appid;
+                    return (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => { setSelected(isSelected ? null : entry); setApplied(false); }, style: isSelected ? { color: "#67a3ff", fontWeight: "bold" } : { opacity: 0.8 }, children: isSelected ? `▶ ${entry.name}` : entry.name }) }, entry.appid));
+                }) })) : (SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { children: SP_JSX.jsx("div", { style: { color: "#888", fontSize: "12px", textAlign: "center", padding: "8px 0" }, children: "Aucun jeu de la DB install\u00E9" }) }) }) })), selected && (SP_JSX.jsxs(DFL.PanelSection, { title: "Settings \u00E0 appliquer", children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Proton", children: SP_JSX.jsxs("span", { style: { fontSize: "12px" }, children: [selected.game.proton, selected.game.proton_branch ? ` — ${selected.game.proton_branch}` : ""] }) }) }), selected.game.proton_note && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#ff9800", lineHeight: "1.4" }, children: selected.game.proton_note }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Launch options", children: SP_JSX.jsx("div", { style: { fontSize: "10px", wordBreak: "break-all", color: "#aaa", lineHeight: "1.4" }, children: selected.game.launch_options }) }) }), selected.game.notes && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Notes", children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#ccc" }, children: selected.game.notes }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: applying || applied, onClick: handleApply, children: applying ? "Application..." : applied ? "✓ Appliqué" : "Appliquer les settings BC-250" }) })] })), SP_JSX.jsx(DFL.PanelSection, { children: SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: refresh, children: "Rafra\u00EEchir" }) }) })] }));
 }
 // ── Onglet Système ────────────────────────────────────────────────────────────
 function SystemTab() {
@@ -252,6 +246,15 @@ function SettingsTab({ autoApply, setAutoApply, gamesDb, onRefreshDb, }) {
     };
     return (SP_JSX.jsxs(DFL.PanelSection, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: "Auto-apply au lancement", description: "Applique automatiquement les settings quand un jeu connu est lanc\u00E9", checked: autoApply, onChange: setAutoApply }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: refreshing, onClick: doRefresh, children: refreshing ? "Rafraîchissement..." : "Rafraîchir DB depuis GitHub" }) }), meta?.updated && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "DB mise \u00E0 jour le", children: SP_JSX.jsx("span", { style: { fontSize: "11px", color: "#888" }, children: meta.updated }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: "Contribuer", children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#67a3ff" }, children: "github.com/Necrosiak/bc250-toolkit-decky" }) }) })] }));
 }
+// ── Barre d'onglets (ButtonItem = navigation manette garantie) ────────────────
+const TAB_DEFS = [
+    { id: "games", label: "Jeux" },
+    { id: "system", label: "Système" },
+    { id: "settings", label: "Réglages" },
+];
+function TabBar({ tab, setTab }) {
+    return (SP_JSX.jsx(DFL.PanelSection, { children: TAB_DEFS.map(({ id, label }) => (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", onClick: () => setTab(id), style: tab === id ? { color: "#67a3ff", fontWeight: "bold" } : { opacity: 0.6 }, children: tab === id ? `▶ ${label}` : label }) }, id))) }));
+}
 // ── Plugin principal ──────────────────────────────────────────────────────────
 function Content() {
     const [tab, setTab] = SP_REACT.useState("games");
@@ -271,7 +274,7 @@ function Content() {
     };
     if (!dbLoaded)
         return SP_JSX.jsx(DFL.SteamSpinner, {});
-    return (SP_JSX.jsxs("div", { children: [SP_JSX.jsxs("div", { style: { display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: "4px" }, children: [SP_JSX.jsx("button", { style: tabBtnStyle(tab === "games"), onClick: () => setTab("games"), children: "Jeux" }), SP_JSX.jsx("button", { style: tabBtnStyle(tab === "system"), onClick: () => setTab("system"), children: "Syst\u00E8me" }), SP_JSX.jsx("button", { style: tabBtnStyle(tab === "settings"), onClick: () => setTab("settings"), children: "R\u00E9glages" })] }), tab === "games" && SP_JSX.jsx(GamesTab, { gamesDb: gamesDb, autoApply: autoApply }), tab === "system" && SP_JSX.jsx(SystemTab, {}), tab === "settings" && (SP_JSX.jsx(SettingsTab, { autoApply: autoApply, setAutoApply: setAutoApply, gamesDb: gamesDb, onRefreshDb: refreshDb }))] }));
+    return (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsx(TabBar, { tab: tab, setTab: setTab }), tab === "games" && SP_JSX.jsx(GamesTab, { gamesDb: gamesDb, autoApply: autoApply }), tab === "system" && SP_JSX.jsx(SystemTab, {}), tab === "settings" && (SP_JSX.jsx(SettingsTab, { autoApply: autoApply, setAutoApply: setAutoApply, gamesDb: gamesDb, onRefreshDb: refreshDb }))] }));
 }
 var index = definePlugin(() => ({
     name: "BC250 Toolkit",
