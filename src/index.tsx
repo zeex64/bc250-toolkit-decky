@@ -374,7 +374,7 @@ function SettingsTab({
       <PanelSectionRow>
         <Field label="Contribuer">
           <div style={{ fontSize: "11px", color: "#67a3ff" }}>
-            github.com/necrocyberangel/bc250-toolkit-decky
+            github.com/Necrosiak/bc250-toolkit-decky
           </div>
         </Field>
       </PanelSectionRow>

@@ -9,9 +9,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/necrocyberangel/bc250-toolkit-decky.git"
+    "url": "git+https://github.com/Necrosiak/bc250-toolkit-decky.git"
   },
-  "author": "necrocyberangel",
+  "author": "Necrosiak",
   "license": "GPL-3.0",
   "devDependencies": {
     "@decky/rollup": "^1.0.1",
