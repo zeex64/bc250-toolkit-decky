@@ -583,8 +583,10 @@ class Plugin:
         # RLC always-on mask
         _umr_write(umr, CU_REG_RLC, union)
 
+        boot_ok = True
+        boot_err = None
         if save_boot:
-            self._write_cu_boot_service(profile, masks, umr)
+            boot_ok, boot_err = self._write_cu_boot_service(profile, masks, umr)
 
         cu = CU_PROFILES[profile]["cu"]
         try:
@@ -592,10 +594,15 @@ class Plugin:
         except Exception:
             pass
 
-        return {"ok": True, "profile": profile, "cu_count": cu}
+        result = {"ok": True, "profile": profile, "cu_count": cu}
+        if save_boot:
+            result["boot_saved"] = boot_ok
+            if not boot_ok:
+                result["boot_error"] = boot_err
+        return result
 
-    def _write_cu_boot_service(self, profile: str, masks: list, umr: str):
-        """Crée un script de restauration CU + service systemd activé au boot."""
+    def _write_cu_boot_service(self, profile: str, masks: list, umr: str) -> tuple[bool, str]:
+        """Crée un script de restauration CU + service systemd activé au boot via sudo."""
         union = 0
         for m in masks:
             union |= m
@@ -613,12 +620,16 @@ class Plugin:
             script_lines.append(f'"$UMR" -g "$INST" -b {se} {sh} 0xffffffff -w "$ASIC".{CU_REG_CC} 0x0')
             script_lines.append(f'"$UMR" -g "$INST" -b {se} {sh} 0xffffffff -w "$ASIC".{CU_REG_SPI} {hex(masks[idx])}')
         script_lines.append(f'"$UMR" -g "$INST" -w "$ASIC".{CU_REG_RLC} {hex(union)} || true')
+        script_content = "\n".join(script_lines) + "\n"
 
-        try:
-            CU_RESTORE_SCRIPT.write_text("\n".join(script_lines) + "\n")
-            CU_RESTORE_SCRIPT.chmod(0o755)
-        except Exception:
-            return
+        # Écriture du script restore via sudo tee (plugin tourne en bazzite, pas root)
+        r = subprocess.run(
+            ["sudo", "tee", str(CU_RESTORE_SCRIPT)],
+            input=script_content, text=True, capture_output=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return False, f"tee restore script: {r.stderr.strip()}"
+        subprocess.run(["sudo", "chmod", "755", str(CU_RESTORE_SCRIPT)], capture_output=True, timeout=5)
 
         wait_line = "for _ in {1..30}; do compgen -G '/dev/dri/renderD*' >/dev/null && exit 0; sleep 1; done; exit 1"
         service_lines = [
@@ -636,12 +647,25 @@ class Plugin:
             "[Install]",
             "WantedBy=multi-user.target",
         ]
-        try:
-            CU_SERVICE_PATH.write_text("\n".join(service_lines) + "\n")
-            subprocess.run(["systemctl", "daemon-reload"], capture_output=True, timeout=5)
-            subprocess.run(["systemctl", "enable", CU_SERVICE_NAME], capture_output=True, timeout=5)
-        except Exception:
-            pass
+        service_content = "\n".join(service_lines) + "\n"
+
+        # Écriture du service systemd via sudo tee
+        r = subprocess.run(
+            ["sudo", "tee", str(CU_SERVICE_PATH)],
+            input=service_content, text=True, capture_output=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return False, f"tee service file: {r.stderr.strip()}"
+
+        subprocess.run(["sudo", "systemctl", "daemon-reload"], capture_output=True, timeout=10)
+        r = subprocess.run(
+            ["sudo", "systemctl", "enable", f"{CU_SERVICE_NAME}.service"],
+            capture_output=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return False, f"systemctl enable: {r.stderr.strip()}"
+
+        return True, "ok"
 
     # ── umr auto-install ──────────────────────────────────────────────────────
 

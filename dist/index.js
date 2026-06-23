@@ -745,11 +745,14 @@ function CuTab() {
         try {
             const r = await call("apply_cu_profile", profileKey, saveBoot);
             if (r.ok) {
-                const msg = saveBoot
+                let msg = saveBoot
                     ? t("cu_done_boot", { count: r.cu_count ?? 0 })
                     : t("cu_done_live", { count: r.cu_count ?? 0 });
+                if (saveBoot && r.boot_saved === false) {
+                    msg = `${t("cu_done_live", { count: r.cu_count ?? 0 })} — boot: ✗ ${r.boot_error ?? "sudoers?"}`;
+                }
                 setLastMsg(msg);
-                toaster.toast({ title: "BC250 Toolkit", body: msg, duration: 3000 });
+                toaster.toast({ title: "BC250 Toolkit", body: msg, duration: saveBoot && r.boot_saved === false ? 6000 : 3000 });
                 refresh();
             }
             else {
