@@ -61,7 +61,8 @@ CU_PROFILES: dict = {
     "36cu":  {"label": "36 CU",          "cu": 36, "masks": [0x1f, 0x1f, 0x0f, 0x0f]},
     "40cu":  {"label": "40 CU (full)",   "cu": 40, "masks": [0x1f, 0x1f, 0x1f, 0x1f]},
 }
-CU_ASIC = "cyan_skillfish.gfx1013"
+CU_ASIC          = "cyan_skillfish.gfx1013"
+CU_ASIC_INSTANCE = "cyan_skillfish@1"   # instance 1 sur kernel 6.17+ (debugfs /dri/1/)
 CU_REG_CC  = "mmCC_GC_SHADER_ARRAY_CONFIG"
 CU_REG_SPI = "mmSPI_PG_ENABLE_STATIC_WGP_MASK"
 CU_REG_RLC = "mmRLC_PG_ALWAYS_ON_WGP_MASK"
@@ -82,8 +83,9 @@ def _find_umr() -> str | None:
 
 def _umr_write(umr: str, reg: str, value: int,
                se: int | None = None, sh: int | None = None) -> bool:
+    # -g sélectionne l'instance GPU (instance 1 sur kernel 6.17+)
     # -b DOIT précéder -w : umr traite les flags séquentiellement
-    cmd = [umr]
+    cmd = [umr, "-g", CU_ASIC_INSTANCE]
     if se is not None and sh is not None:
         cmd += ["-b", str(se), str(sh), "0xffffffff"]
     cmd += ["-w", f"{CU_ASIC}.{reg}", hex(value)]
@@ -96,8 +98,9 @@ def _umr_write(umr: str, reg: str, value: int,
 
 def _umr_read(umr: str, reg: str,
               se: int | None = None, sh: int | None = None) -> int | None:
+    # -g sélectionne l'instance GPU (instance 1 sur kernel 6.17+)
     # -b DOIT précéder -r
-    cmd = [umr]
+    cmd = [umr, "-g", CU_ASIC_INSTANCE]
     if se is not None and sh is not None:
         cmd += ["-b", str(se), str(sh), "0xffffffff"]
     cmd += ["-r", f"{CU_ASIC}.{reg}"]
@@ -519,13 +522,14 @@ class Plugin:
             f"# BC-250 CU profile: {CU_PROFILES[profile]['label']} — BC250-Toolkit-Decky",
             f"UMR={umr}",
             f"ASIC={CU_ASIC}",
+            f"INST={CU_ASIC_INSTANCE}",
             "",
-            f'"$UMR" -w "$ASIC".{CU_REG_CC} 0x0 || true',
+            f'"$UMR" -g "$INST" -w "$ASIC".{CU_REG_CC} 0x0 || true',
         ]
         for idx, (se, sh) in enumerate(CU_SE_SH):
-            script_lines.append(f'"$UMR" -w "$ASIC".{CU_REG_CC} 0x0 -b {se} {sh} 0xffffffff')
-            script_lines.append(f'"$UMR" -w "$ASIC".{CU_REG_SPI} {hex(masks[idx])} -b {se} {sh} 0xffffffff')
-        script_lines.append(f'"$UMR" -w "$ASIC".{CU_REG_RLC} {hex(union)} || true')
+            script_lines.append(f'"$UMR" -g "$INST" -b {se} {sh} 0xffffffff -w "$ASIC".{CU_REG_CC} 0x0')
+            script_lines.append(f'"$UMR" -g "$INST" -b {se} {sh} 0xffffffff -w "$ASIC".{CU_REG_SPI} {hex(masks[idx])}')
+        script_lines.append(f'"$UMR" -g "$INST" -w "$ASIC".{CU_REG_RLC} {hex(union)} || true')
 
         try:
             CU_RESTORE_SCRIPT.write_text("\n".join(script_lines) + "\n")
