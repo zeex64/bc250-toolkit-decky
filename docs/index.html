@@ -249,6 +249,14 @@
 
   <form id="gameForm" novalidate>
 
+    <!-- Catalog search (helper, optional) -->
+    <div class="field" id="f-catalog">
+      <label for="gameSearch"><span data-i18n="label_catalog"></span></label>
+      <input type="text" id="gameSearch" list="gameCatalog" autocomplete="off" placeholder="Counter-Strike, Elden Ring…" />
+      <datalist id="gameCatalog"></datalist>
+      <div class="hint" data-i18n="hint_catalog"></div>
+    </div>
+
     <!-- Game Name -->
     <div class="field" id="f-name">
       <label for="gameName"><span data-i18n="label_name"></span><span class="req">*</span></label>
@@ -343,6 +351,8 @@ const I18N = {
     label_name: "Game Name",
     label_appid: "Steam App ID",
     hint_appid: "The number in the Steam Store page URL",
+    label_catalog: "Search the game catalog (top 2000 — optional)",
+    hint_catalog: "Pick your game to auto-fill its name & App ID. Not listed? Just fill them in manually below.",
     hintwarn_appid: "❌ Do not paste the full URL — only the number (e.g. 1245620)",
     label_proton: "Proton Version",
     hint_proton: "If unsure, GE-Proton (latest) is recommended for most games on BC-250.",
@@ -382,6 +392,8 @@ const I18N = {
     label_name: "Nom du jeu",
     label_appid: "Steam App ID",
     hint_appid: "Le numéro dans l'URL de la page Steam Store",
+    label_catalog: "Rechercher dans le catalogue (top 2000 — optionnel)",
+    hint_catalog: "Choisissez votre jeu pour remplir automatiquement son nom et son App ID. Absent ? Remplissez-les à la main ci-dessous.",
     hintwarn_appid: "❌ Ne pas coller l'URL complète — seulement le numéro (ex : 1245620)",
     label_proton: "Version Proton",
     hint_proton: "En cas de doute, GE-Proton (latest) est recommandé pour la plupart des jeux sur BC-250.",
@@ -421,6 +433,8 @@ const I18N = {
     label_name: "Spielname",
     label_appid: "Steam App-ID",
     hint_appid: "Die Nummer in der Steam-Store-URL",
+    label_catalog: "Im Spielkatalog suchen (Top 2000 — optional)",
+    hint_catalog: "Wähle dein Spiel, um Name & App-ID automatisch auszufüllen. Nicht gelistet? Einfach unten manuell eintragen.",
     hintwarn_appid: "❌ Nicht die vollständige URL einfügen — nur die Nummer (z.B. 1245620)",
     label_proton: "Proton-Version",
     hint_proton: "Bei Unsicherheit: GE-Proton (latest) wird für die meisten Spiele auf BC-250 empfohlen.",
@@ -460,6 +474,8 @@ const I18N = {
     label_name: "Nombre del juego",
     label_appid: "Steam App ID",
     hint_appid: "El número en la URL de la página de Steam Store",
+    label_catalog: "Buscar en el catálogo de juegos (top 2000 — opcional)",
+    hint_catalog: "Elige tu juego para rellenar automáticamente su nombre y App ID. ¿No está? Rellénalos manualmente abajo.",
     hintwarn_appid: "❌ No pegues la URL completa — solo el número (ej: 1245620)",
     label_proton: "Versión de Proton",
     hint_proton: "Si no estás seguro, GE-Proton (latest) es recomendado para la mayoría de juegos en BC-250.",
@@ -499,6 +515,8 @@ const I18N = {
     label_name: "Nome del gioco",
     label_appid: "Steam App ID",
     hint_appid: "Il numero nell'URL della pagina Steam Store",
+    label_catalog: "Cerca nel catalogo giochi (top 2000 — opzionale)",
+    hint_catalog: "Scegli il tuo gioco per compilare automaticamente nome e App ID. Non c'è? Inseriscili manualmente sotto.",
     hintwarn_appid: "❌ Non incollare l'URL completo — solo il numero (es: 1245620)",
     label_proton: "Versione Proton",
     hint_proton: "In caso di dubbio, GE-Proton (latest) è consigliato per la maggior parte dei giochi su BC-250.",
@@ -538,6 +556,8 @@ const I18N = {
     label_name: "Nome do jogo",
     label_appid: "Steam App ID",
     hint_appid: "O número no URL da página Steam Store",
+    label_catalog: "Procurar no catálogo de jogos (top 2000 — opcional)",
+    hint_catalog: "Escolhe o teu jogo para preencher automaticamente o nome e o App ID. Não está? Preenche-os manualmente abaixo.",
     hintwarn_appid: "❌ Não cole o URL completo — apenas o número (ex: 1245620)",
     label_proton: "Versão Proton",
     hint_proton: "Em caso de dúvida, GE-Proton (latest) é recomendado para a maioria dos jogos no BC-250.",
@@ -577,6 +597,8 @@ const I18N = {
     label_name: "Spelnaam",
     label_appid: "Steam App ID",
     hint_appid: "Het getal in de Steam Store-URL",
+    label_catalog: "Zoek in de spelcatalogus (top 2000 — optioneel)",
+    hint_catalog: "Kies je spel om automatisch naam & App ID in te vullen. Niet vermeld? Vul ze hieronder handmatig in.",
     hintwarn_appid: "❌ Plak niet de volledige URL — alleen het getal (bijv. 1245620)",
     label_proton: "Proton-versie",
     hint_proton: "Bij twijfel: GE-Proton (latest) wordt aanbevolen voor de meeste spellen op BC-250.",
@@ -616,6 +638,8 @@ const I18N = {
     label_name: "Nazwa gry",
     label_appid: "Steam App ID",
     hint_appid: "Liczba w adresie URL strony Steam Store",
+    label_catalog: "Szukaj w katalogu gier (top 2000 — opcjonalne)",
+    hint_catalog: "Wybierz grę, aby automatycznie wypełnić jej nazwę i App ID. Nie ma jej? Wpisz je ręcznie poniżej.",
     hintwarn_appid: "❌ Nie wklejaj pełnego URL — tylko numer (np. 1245620)",
     label_proton: "Wersja Proton",
     hint_proton: "Jeśli nie wiesz, GE-Proton (latest) jest zalecany dla większości gier na BC-250.",
@@ -655,6 +679,8 @@ const I18N = {
     label_name: "Название игры",
     label_appid: "Steam App ID",
     hint_appid: "Число в URL страницы Steam Store",
+    label_catalog: "Поиск в каталоге игр (топ-2000 — необязательно)",
+    hint_catalog: "Выберите игру, чтобы автоматически заполнить её название и App ID. Нет в списке? Заполните их вручную ниже.",
     hintwarn_appid: "❌ Не вставляйте полный URL — только число (например, 1245620)",
     label_proton: "Версия Proton",
     hint_proton: "Если не уверены, GE-Proton (latest) рекомендуется для большинства игр на BC-250.",
@@ -866,6 +892,55 @@ document.getElementById("gameForm").addEventListener("submit", function(e) {
     clearState(fieldMap[id]);
   });
 });
+
+/* ── Game catalog (top 2000 most-played, from games_catalog.json) ── */
+const CATALOG_URL = "https://raw.githubusercontent.com/Necrosiak/bc250-toolkit-decky/main/games_catalog.json";
+let CATALOG = [];
+let CATALOG_BY_NAME = new Map();
+
+async function loadCatalog() {
+  try {
+    const r = await fetch(CATALOG_URL, { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    CATALOG = Array.isArray(data.games) ? data.games : [];
+    CATALOG_BY_NAME = new Map(CATALOG.map(g => [g.name.toLowerCase(), String(g.appid)]));
+  } catch (e) { /* offline / blocked → manual entry still works */ }
+}
+
+function refreshCatalogOptions(query) {
+  const dl = document.getElementById("gameCatalog");
+  const q = query.trim().toLowerCase();
+  if (q.length < 2 || !CATALOG.length) { dl.innerHTML = ""; return; }
+  const matches = [];
+  for (const g of CATALOG) {
+    if (g.name.toLowerCase().includes(q)) {
+      matches.push(g);
+      if (matches.length >= 50) break;
+    }
+  }
+  dl.innerHTML = matches
+    .map(g => `<option value="${g.name.replace(/"/g, "&quot;")}">#${g.appid}</option>`)
+    .join("");
+}
+
+function applyCatalogSelection(value) {
+  const appid = CATALOG_BY_NAME.get(value.trim().toLowerCase());
+  if (appid) {
+    document.getElementById("gameName").value = value.trim();
+    document.getElementById("appId").value = appid;
+    clearState("f-name");
+    clearState("f-appid");
+  }
+}
+
+const gameSearch = document.getElementById("gameSearch");
+gameSearch.addEventListener("input", function () {
+  refreshCatalogOptions(this.value);
+  applyCatalogSelection(this.value); // fires when a datalist option is clicked
+});
+gameSearch.addEventListener("change", function () { applyCatalogSelection(this.value); });
+loadCatalog();
 
 buildLangBar();
 applyLang(detectLang());
