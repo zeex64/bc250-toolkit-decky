@@ -8,6 +8,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 import vdf as _vdf
+import updater
 
 GAMES_DB_URL = "https://raw.githubusercontent.com/Necrosiak/bc250-toolkit-decky/main/games_db.json"
 LOCAL_DB_PATH = Path(os.path.dirname(__file__)) / "games_db.json"
@@ -273,6 +274,37 @@ class Plugin:
                 CU_LIVE_CACHE.unlink(missing_ok=True)
         self._install_pre_steam_hook()
         await self._load_db()
+        asyncio.create_task(self._autoupdate_check())
+
+    async def _autoupdate_check(self):
+        # Silent release check at boot: if enabled and a newer release exists,
+        # download + unpack over the plugin dir and restart plugin_loader.
+        try:
+            if not updater.is_autoupdate_enabled():
+                return
+            info = await updater.check()
+            if not info.get("update_available"):
+                return
+            print(f"[BC250 updater] {info['latest']} available (have {info['current']}); auto-applying")
+            if await updater.apply(info["url"]):
+                updater.restart_loader()
+        except Exception as e:
+            print(f"[BC250 updater] auto-check error: {e}")
+
+    async def check_update(self):
+        return await updater.check()
+
+    async def apply_update(self, url):
+        ok = await updater.apply(url)
+        if ok:
+            updater.restart_loader()
+        return ok
+
+    async def get_autoupdate(self):
+        return updater.is_autoupdate_enabled()
+
+    async def set_autoupdate(self, enabled):
+        return updater.set_autoupdate_enabled(enabled)
 
     def _install_pre_steam_hook(self):
         """Installe ExecStartPre dans le service Steam pour appliquer les VDF pending."""

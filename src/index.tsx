@@ -582,7 +582,52 @@ function SettingsTab({
     try { await onRefreshDb(); } finally { setRefreshing(false); }
   };
 
+  // ── Mises à jour (release-based) ──
+  const [autoUpd, setAutoUpd] = useState(true);
+  const [updStatus, setUpdStatus] = useState<
+    "idle" | "checking" | "available" | "uptodate" | "installing"
+  >("idle");
+  const [updLatest, setUpdLatest] = useState("");
+  const [updCurrent, setUpdCurrent] = useState("");
+  const [updUrl, setUpdUrl] = useState("");
+
+  useEffect(() => {
+    call<[], boolean>("get_autoupdate").then((v) => setAutoUpd(!!v)).catch(() => {});
+  }, []);
+
+  const onToggleAutoUpd = (v: boolean) => {
+    setAutoUpd(v);
+    call<[boolean], boolean>("set_autoupdate", v).catch(() => {});
+  };
+
+  const checkUpd = async () => {
+    setUpdStatus("checking");
+    try {
+      const info: any = await call<[], any>("check_update");
+      setUpdCurrent(info?.current || "");
+      if (info?.update_available) {
+        setUpdLatest(info.latest); setUpdUrl(info.url); setUpdStatus("available");
+      } else {
+        setUpdStatus("uptodate");
+      }
+    } catch { setUpdStatus("idle"); }
+  };
+
+  const installUpd = async () => {
+    setUpdStatus("installing");
+    // Backend unpacks the release and restarts plugin_loader on success.
+    try { await call<[string], boolean>("apply_update", updUrl); } catch {}
+  };
+
+  const updLabel =
+    updStatus === "checking" ? t("update_checking")
+    : updStatus === "installing" ? t("update_installing")
+    : updStatus === "available" ? t("update_install", { v: updLatest })
+    : updStatus === "uptodate" ? t("update_up_to_date", { v: updCurrent })
+    : t("update_check");
+
   return (
+    <>
     <PanelSection>
       <PanelSectionRow>
         <ToggleField
@@ -612,6 +657,25 @@ function SettingsTab({
         </Field>
       </PanelSectionRow>
     </PanelSection>
+    <PanelSection title={t("update_section")}>
+      <PanelSectionRow>
+        <ToggleField
+          label={t("update_auto")}
+          checked={autoUpd}
+          onChange={onToggleAutoUpd}
+        />
+      </PanelSectionRow>
+      <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          disabled={updStatus === "checking" || updStatus === "installing"}
+          onClick={updStatus === "available" ? installUpd : checkUpd}
+        >
+          {updLabel}
+        </ButtonItem>
+      </PanelSectionRow>
+    </PanelSection>
+    </>
   );
 }
 

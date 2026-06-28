@@ -183,6 +183,13 @@ const T = {
         // Settings
         set_auto: "Auto-apply on launch",
         set_auto_desc: "Automatically applies settings when a known game is launched",
+        update_section: "Updates",
+        update_auto: "Automatic updates",
+        update_check: "Check for updates",
+        update_checking: "Checking…",
+        update_install: "Install {v}",
+        update_installing: "Installing…",
+        update_up_to_date: "Up to date ({v})",
         set_refresh_db: "Refresh DB from GitHub",
         set_refreshing: "Refreshing...",
         set_db_date: "DB updated on",
@@ -232,6 +239,13 @@ const T = {
         sys_toast_ok: "✓ Tweaks mis à jour", sys_toast_fail: "✗ Erreur mise à jour", sys_log: "Log",
         set_auto: "Auto-apply au lancement",
         set_auto_desc: "Applique automatiquement les settings quand un jeu connu est lancé",
+        update_section: "Mises à jour",
+        update_auto: "Mises à jour automatiques",
+        update_check: "Vérifier les mises à jour",
+        update_checking: "Vérification…",
+        update_install: "Installer {v}",
+        update_installing: "Installation…",
+        update_up_to_date: "À jour ({v})",
         set_refresh_db: "Rafraîchir DB depuis GitHub", set_refreshing: "Rafraîchissement...",
         set_db_date: "DB mise à jour le", set_contribute: "Contribuer", toast_db_ok: "DB mise à jour",
     },
@@ -825,7 +839,51 @@ function SettingsTab({ autoApply, setAutoApply, gamesDb, onRefreshDb, }) {
             setRefreshing(false);
         }
     };
-    return (SP_JSX.jsxs(DFL.PanelSection, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: t("set_auto"), description: t("set_auto_desc"), checked: autoApply, onChange: setAutoApply }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: refreshing, onClick: doRefresh, children: refreshing ? t("set_refreshing") : t("set_refresh_db") }) }), meta?.updated && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: t("set_db_date"), children: SP_JSX.jsx("span", { style: { fontSize: "11px", color: "#888" }, children: meta.updated }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: t("set_contribute"), children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#67a3ff" }, children: "github.com/Necrosiak/bc250-toolkit-decky" }) }) })] }));
+    // ── Mises à jour (release-based) ──
+    const [autoUpd, setAutoUpd] = SP_REACT.useState(true);
+    const [updStatus, setUpdStatus] = SP_REACT.useState("idle");
+    const [updLatest, setUpdLatest] = SP_REACT.useState("");
+    const [updCurrent, setUpdCurrent] = SP_REACT.useState("");
+    const [updUrl, setUpdUrl] = SP_REACT.useState("");
+    SP_REACT.useEffect(() => {
+        call("get_autoupdate").then((v) => setAutoUpd(!!v)).catch(() => { });
+    }, []);
+    const onToggleAutoUpd = (v) => {
+        setAutoUpd(v);
+        call("set_autoupdate", v).catch(() => { });
+    };
+    const checkUpd = async () => {
+        setUpdStatus("checking");
+        try {
+            const info = await call("check_update");
+            setUpdCurrent(info?.current || "");
+            if (info?.update_available) {
+                setUpdLatest(info.latest);
+                setUpdUrl(info.url);
+                setUpdStatus("available");
+            }
+            else {
+                setUpdStatus("uptodate");
+            }
+        }
+        catch {
+            setUpdStatus("idle");
+        }
+    };
+    const installUpd = async () => {
+        setUpdStatus("installing");
+        // Backend unpacks the release and restarts plugin_loader on success.
+        try {
+            await call("apply_update", updUrl);
+        }
+        catch { }
+    };
+    const updLabel = updStatus === "checking" ? t("update_checking")
+        : updStatus === "installing" ? t("update_installing")
+            : updStatus === "available" ? t("update_install", { v: updLatest })
+                : updStatus === "uptodate" ? t("update_up_to_date", { v: updCurrent })
+                    : t("update_check");
+    return (SP_JSX.jsxs(SP_JSX.Fragment, { children: [SP_JSX.jsxs(DFL.PanelSection, { children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: t("set_auto"), description: t("set_auto_desc"), checked: autoApply, onChange: setAutoApply }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: refreshing, onClick: doRefresh, children: refreshing ? t("set_refreshing") : t("set_refresh_db") }) }), meta?.updated && (SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: t("set_db_date"), children: SP_JSX.jsx("span", { style: { fontSize: "11px", color: "#888" }, children: meta.updated }) }) })), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.Field, { label: t("set_contribute"), children: SP_JSX.jsx("div", { style: { fontSize: "11px", color: "#67a3ff" }, children: "github.com/Necrosiak/bc250-toolkit-decky" }) }) })] }), SP_JSX.jsxs(DFL.PanelSection, { title: t("update_section"), children: [SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ToggleField, { label: t("update_auto"), checked: autoUpd, onChange: onToggleAutoUpd }) }), SP_JSX.jsx(DFL.PanelSectionRow, { children: SP_JSX.jsx(DFL.ButtonItem, { layout: "below", disabled: updStatus === "checking" || updStatus === "installing", onClick: updStatus === "available" ? installUpd : checkUpd, children: updLabel }) })] })] }));
 }
 const TAB_DEFS = [
     { id: "games", tKey: "tab_games" },
