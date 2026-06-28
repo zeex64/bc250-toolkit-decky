@@ -12,7 +12,7 @@
     "proton": "GE-Proton10-34",
     "compat_tool": "GE-Proton10-34",
     "launch_options": "MANGOHUD=1 MANGOHUD_CONFIG=no_display ENABLE_VKBASALT=1 gamemoderun %command%",
-    "radv": { "radv_enable_unified_heap_on_apu": false },
+    "radv": { "match": "CodeVein2-Win64-Shipping.exe", "options": { "radv_enable_unified_heap_on_apu": false } },
     "requires": { "uma_min_mb": 4096, "note": "UMA Frame Buffer ≥ 4G au BIOS (AMD CBS). Sinon : crash 'out of video memory' à l'init." },
     "stability": "stable",
     "notes": "UE5 DX12 (VKD3D). Le crash 'out of video memory' (D3D12Util.cpp:926, dès l'init à ~1 Go) vient du unified heap radv qui masque la VRAM dédiée à VKD3D (DedicatedVideoMemory≈0). FIX : unified heap OFF pour ce jeu (champ radv) + UMA ≥4G au BIOS pour exposer une vraie VRAM dédiée. GE-Proton requis pour les cinématiques (codecs vidéo Media Foundation, sinon image noire + son). Compilation shaders longue au 1er lancement. En jeu la VRAM est proche du plafond 4G (stutter possible) → variante UMA 8G ci-dessous si dispo.",
@@ -23,7 +23,7 @@
         "stability": "stable",
         "compat_tool": "GE-Proton10-34",
         "launch_options": "MANGOHUD=1 MANGOHUD_CONFIG=no_display ENABLE_VKBASALT=1 gamemoderun %command%",
-        "radv": { "radv_enable_unified_heap_on_apu": false },
+        "radv": { "match": "CodeVein2-Win64-Shipping.exe", "options": { "radv_enable_unified_heap_on_apu": false } },
         "requires": { "uma_min_mb": 4096 }
       },
       {
@@ -31,7 +31,7 @@
         "stability": "experimental",
         "compat_tool": "GE-Proton10-34",
         "launch_options": "MANGOHUD=1 MANGOHUD_CONFIG=no_display ENABLE_VKBASALT=1 gamemoderun %command%",
-        "radv": { "radv_enable_unified_heap_on_apu": false },
+        "radv": { "match": "CodeVein2-Win64-Shipping.exe", "options": { "radv_enable_unified_heap_on_apu": false } },
         "requires": { "uma_min_mb": 8192, "gttsize": 6000, "note": "UMA 8G : RAM système → ~7 Go, baisser amdgpu.gttsize à ~6000." }
       }
     ]

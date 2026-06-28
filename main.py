@@ -54,6 +54,14 @@ PRE_STEAM_SCRIPT = BC250_DATA_DIR / "bc250-apply-vdf.py"
 STEAM_DROPIN_DIR = _USER_HOME / ".config/systemd/user/app-steam@autostart.service.d"
 STEAM_DROPIN     = STEAM_DROPIN_DIR / "bc250-vdf-apply.conf"
 
+# ── Per-game radv/drirc options ───────────────────────────────────────────────
+# Certaines configs ont besoin d'options mesa radv par-jeu (ex: désactiver le
+# unified heap pour les jeux DX12/VKD3D, cf Code Vein 2). On possède entièrement
+# ~/.drirc : on le régénère depuis un état JSON. Match sur le pApplicationName
+# que DXVK/vkd3d passent à radv (= nom de l'exe, ex "Jeu-Win64-Shipping.exe").
+DRIRC_PATH      = _USER_HOME / ".drirc"
+RADV_STATE_FILE = BC250_DATA_DIR / "radv_configs.json"
+
 # ── CU management ─────────────────────────────────────────────────────────────
 # Hardware : 5 WGPs × 2 CU × 4 rangées (SE0.SH0, SE0.SH1, SE1.SH0, SE1.SH1) = 40 CU max
 # Stock BC-250 : WGP0-2 actifs (mask 0x07) = 6 CU/rangée × 4 = 24 CU
@@ -537,6 +545,123 @@ class Plugin:
             return {"ok": True}
         except Exception as e:
             return {"ok": True, "detail": f"pending only: {e}"}
+
+    # ── Per-game radv/drirc options ───────────────────────────────────────────
+
+    @staticmethod
+    def _drirc_value(v) -> str:
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        return str(v)
+
+    def _regenerate_drirc(self) -> None:
+        """Régénère entièrement ~/.drirc depuis RADV_STATE_FILE (fichier qu'on possède).
+        Un bloc <application> par jeu configuré, match sur pApplicationName. Les jeux
+        non listés gardent le Default de /etc/drirc (ex: unified heap on)."""
+        state: dict = {}
+        if RADV_STATE_FILE.exists():
+            try:
+                state = json.loads(RADV_STATE_FILE.read_text())
+            except Exception:
+                state = {}
+        lines = ['<driconf>', '  <device>',
+                 '    <!-- Généré par BC250-Toolkit — NE PAS éditer à la main. '
+                 'Overrides radv par-jeu (match sur pApplicationName). -->']
+        for app_id, cfg in sorted(state.items()):
+            match = cfg.get("match")
+            opts = cfg.get("options", {})
+            if not match or not opts:
+                continue
+            name = self._xml_escape(match)
+            lines.append(f'    <application name="{name}">')
+            for k, v in opts.items():
+                lines.append(
+                    f'      <option name="{self._xml_escape(str(k))}" '
+                    f'value="{self._xml_escape(self._drirc_value(v))}" />'
+                )
+            lines.append('    </application>')
+        lines += ['  </device>', '</driconf>', '']
+        DRIRC_PATH.write_text("\n".join(lines))
+        try:
+            os.chown(DRIRC_PATH, _user_uid(), _user_uid())
+        except Exception:
+            pass
+
+    @staticmethod
+    def _xml_escape(s: str) -> str:
+        return (s.replace("&", "&amp;").replace("<", "&lt;")
+                 .replace(">", "&gt;").replace('"', "&quot;"))
+
+    async def apply_radv_config(self, app_id: int, match: str, options: dict) -> dict:
+        """Enregistre les options radv per-jeu et régénère ~/.drirc."""
+        try:
+            BC250_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            state: dict = {}
+            if RADV_STATE_FILE.exists():
+                try:
+                    state = json.loads(RADV_STATE_FILE.read_text())
+                except Exception:
+                    state = {}
+            if not match or not options:
+                state.pop(str(app_id), None)
+            else:
+                state[str(app_id)] = {"match": match, "options": options}
+            RADV_STATE_FILE.write_text(json.dumps(state, indent=2))
+            self._regenerate_drirc()
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    async def clear_radv_config(self, app_id: int) -> dict:
+        return await self.apply_radv_config(app_id, "", {})
+
+    # ── Orchestrateur : appliquer une config (variante) complète ───────────────
+
+    async def apply_game_config(self, app_id: int, variant_index: int | None = None) -> dict:
+        """Applique une config complète d'un jeu : compat_tool + launch_options + radv.
+        variant_index=None → config stable (top-level). Sinon → configs[variant_index]."""
+        entry = self._games_db.get(str(app_id))
+        if not entry:
+            return {"ok": False, "error": f"Jeu {app_id} absent de la DB"}
+        cfg = entry
+        if variant_index is not None:
+            variants = entry.get("configs") or []
+            if 0 <= variant_index < len(variants):
+                cfg = variants[variant_index]
+            else:
+                return {"ok": False, "error": f"variante {variant_index} invalide"}
+        result: dict = {"ok": True, "applied": {}, "requires": cfg.get("requires")}
+
+        compat = cfg.get("compat_tool")
+        if compat:
+            r = await self.apply_compat_tool(app_id, compat)
+            result["applied"]["compat_tool"] = compat
+            if not r.get("ok"):
+                result["ok"] = False
+                result["compat_error"] = r.get("error")
+
+        launch = cfg.get("launch_options")
+        if launch:
+            r = await self.apply_launch_options(app_id, launch)
+            result["applied"]["launch_options"] = launch
+            if not r.get("ok"):
+                result["ok"] = False
+                result["launch_error"] = r.get("detail")
+
+        radv = cfg.get("radv")
+        if radv and radv.get("match") and radv.get("options"):
+            r = await self.apply_radv_config(app_id, radv["match"], radv["options"])
+            result["applied"]["radv"] = radv
+            if not r.get("ok"):
+                result["ok"] = False
+                result["radv_error"] = r.get("error")
+        else:
+            # variante sans radv → s'assurer qu'aucun override résiduel ne traîne
+            await self.clear_radv_config(app_id)
+
+        # compat (config.vdf) + launch (pending) ne sont relus qu'au (re)démarrage de Steam
+        result["need_steam_restart"] = bool(compat or launch)
+        return result
 
     # ── CU management ─────────────────────────────────────────────────────────
 
