@@ -2,6 +2,14 @@
 
 All notable changes to BC250-Toolkit are documented here.
 
+## [0.3.2] - 2026-06-29
+
+### Changed
+- **Consistent action buttons** — every action button (System update, DB
+  refresh, update check/install, CU UMR install, games refresh, About/GitHub)
+  now uses the same focusable `CardBtn` card style as the Games/CU lists. The
+  "update available" button turns green to stand out.
+
 ## [0.3.1] - 2026-06-29
 
 ### Added
@@ -41,6 +49,7 @@ All notable changes to BC250-Toolkit are documented here.
 ### Added
 - Release-based **auto-update** (silent auto-update, manual button, toggle).
 
+[0.3.2]: https://github.com/Necrosiak/bc250-toolkit-decky/releases/tag/v0.3.2
 [0.3.1]: https://github.com/Necrosiak/bc250-toolkit-decky/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Necrosiak/bc250-toolkit-decky/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Necrosiak/bc250-toolkit-decky/releases/tag/v0.2.0

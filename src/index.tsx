@@ -4,7 +4,6 @@ import {
   staticClasses,
   PanelSection,
   PanelSectionRow,
-  ButtonItem,
   Field,
   ToggleField,
   SteamSpinner,
@@ -321,7 +320,7 @@ function GamesTab({ gamesDb, savedVariants }: { gamesDb: GamesDB; savedVariants:
 
       <PanelSection>
         <PanelSectionRow>
-          <ButtonItem layout="below" onClick={refresh}>{t("btn_refresh")}</ButtonItem>
+          <ActionCard onClick={refresh}>🔄 {t("btn_refresh")}</ActionCard>
         </PanelSectionRow>
       </PanelSection>
     </>
@@ -442,9 +441,9 @@ function CuTab() {
               </Field>
             </PanelSectionRow>
             <PanelSectionRow>
-              <ButtonItem layout="below" disabled={installingUmr} onClick={handleInstallUmr}>
-                {installingUmr ? t("cu_installing_umr") : t("cu_install_umr")}
-              </ButtonItem>
+              <ActionCard disabled={installingUmr} onClick={handleInstallUmr}>
+                ⬇️ {installingUmr ? t("cu_installing_umr") : t("cu_install_umr")}
+              </ActionCard>
             </PanelSectionRow>
           </>
         )}
@@ -623,9 +622,9 @@ function SystemTab() {
             </PanelSectionRow>
           )}
           <PanelSectionRow>
-            <ButtonItem layout="below" disabled={updating} onClick={handleUpdate}>
-              {updating ? t("sys_btn_updating") : t("sys_btn_update")}
-            </ButtonItem>
+            <ActionCard disabled={updating} onClick={handleUpdate}>
+              🔄 {updating ? t("sys_btn_updating") : t("sys_btn_update")}
+            </ActionCard>
           </PanelSectionRow>
           {updateLog && (
             <PanelSectionRow>
@@ -727,9 +726,9 @@ function SettingsTab({
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem layout="below" disabled={refreshing} onClick={doRefresh}>
-          {refreshing ? t("set_refreshing") : t("set_refresh_db")}
-        </ButtonItem>
+        <ActionCard disabled={refreshing} onClick={doRefresh}>
+          🔄 {refreshing ? t("set_refreshing") : t("set_refresh_db")}
+        </ActionCard>
       </PanelSectionRow>
       {meta?.updated && (
         <PanelSectionRow>
@@ -755,13 +754,14 @@ function SettingsTab({
         />
       </PanelSectionRow>
       <PanelSectionRow>
-        <ButtonItem
-          layout="below"
+        <ActionCard
+          color={updStatus === "available" ? "#23a55a" : undefined}
+          active={updStatus === "available"}
           disabled={updStatus === "checking" || updStatus === "installing"}
           onClick={updStatus === "available" ? installUpd : checkUpd}
         >
-          {updLabel}
-        </ButtonItem>
+          {updStatus === "available" ? "⬇️ " : "🔄 "}{updLabel}
+        </ActionCard>
       </PanelSectionRow>
     </PanelSection>
 
@@ -774,12 +774,9 @@ function SettingsTab({
         </div>
       </PanelSectionRow>
       <PanelSectionRow>
-        <Btn
-          onClick={() => openUrl("https://github.com/Necrosiak/bc250-toolkit-decky")}
-          style={{ width: "100%", padding: "5px 0", fontSize: 11, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-        >
+        <ActionCard onClick={() => openUrl("https://github.com/Necrosiak/bc250-toolkit-decky")}>
           🔗 GitHub
-        </Btn>
+        </ActionCard>
       </PanelSectionRow>
     </PanelSection>
     </>
@@ -802,7 +799,7 @@ const Btn = DialogButton as any;
 
 // Carte cliquable réutilisable façon Steamcord (liste de profils/actions) : fond
 // couleur si actif, halo blanc + lueur au focus manette. Hoistée (function).
-function CardBtn({ active, focused, color, disabled, onClick, onFocus, onBlur, children }: any) {
+function CardBtn({ active, focused, color, disabled, center, onClick, onFocus, onBlur, children }: any) {
   const c = color || "#5865f2";
   return (
     <Btn
@@ -811,7 +808,8 @@ function CardBtn({ active, focused, color, disabled, onClick, onFocus, onBlur, c
       onFocus={onFocus}
       onBlur={onBlur}
       style={{
-        display: "flex", alignItems: "center", gap: 8, width: "100%",
+        display: "flex", alignItems: "center", justifyContent: center ? "center" : "flex-start",
+        gap: 8, width: "100%",
         padding: "7px 10px", margin: 0, minHeight: 0, boxSizing: "border-box",
         borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: active ? 700 : 400,
         background: active ? c : "rgba(255,255,255,0.05)",
@@ -824,6 +822,26 @@ function CardBtn({ active, focused, color, disabled, onClick, onFocus, onBlur, c
     >
       {children}
     </Btn>
+  );
+}
+
+// CardBtn d'action isolé (Système / Réglages) : gère son propre focus, centré.
+// Pas besoin de remonter l'état au parent comme pour les listes Jeux/CU.
+function ActionCard({ color, active, disabled, onClick, children }: any) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <CardBtn
+      color={color}
+      active={active}
+      disabled={disabled}
+      focused={focused}
+      center
+      onClick={onClick}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    >
+      {children}
+    </CardBtn>
   );
 }
 
