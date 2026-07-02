@@ -40,6 +40,11 @@ EFIVARS_DIR = Path("/sys/firmware/efi/efivars")
 DMI_VERSION_FILE = Path("/sys/class/dmi/id/bios_version")
 DMI_DATE_FILE = Path("/sys/class/dmi/id/bios_date")
 
+# Helper root installé par bc250-tweaks (apply.sh) avec règle sudoers NOPASSWD :
+# le plugin tourne en user, or l'efivar exige root ET un chattr -i préalable
+# (efivarfs pose le flag immutable) — un simple `sudo tee` ne suffit donc pas.
+UMA_HELPER = Path("/usr/local/bin/bc250-uma-helper")
+
 DEFAULT_BACKUP_DIR = Path.home() / ".local/share/bc250-toolkit/bios_backups"
 
 
@@ -139,6 +144,30 @@ def find_setup_variable(version: str | None = None) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def helper_available() -> bool:
+    return UMA_HELPER.exists()
+
+
+HELPER_MISSING_MSG = (
+    "Accès root indisponible (helper bc250-uma-helper absent) — "
+    "mets à jour bc250-tweaks puis réessaie"
+)
+
+
+def _helper_write(var_path: Path, payload: bytes) -> tuple[bool, str]:
+    """Écrit la variable via le helper root (sudo NOPASSWD, chattr géré côté helper)."""
+    if not helper_available():
+        return False, HELPER_MISSING_MSG
+    try:
+        r = subprocess.run(["sudo", "-n", str(UMA_HELPER), "write", str(var_path)],
+                           input=payload, capture_output=True, timeout=10)
+        if r.returncode == 0:
+            return True, "ok"
+        return False, r.stderr.decode(errors="replace").strip() or f"helper exit {r.returncode}"
+    except Exception as e:
+        return False, str(e)
+
+
 def read_setup_raw(version: str | None = None) -> bytes | None:
     p = find_setup_variable(version)
     if not p:
@@ -146,8 +175,11 @@ def read_setup_raw(version: str | None = None) -> bytes | None:
     try:
         return p.read_bytes()
     except PermissionError:
+        if not helper_available():
+            return None
         try:
-            r = subprocess.run(["sudo", "-n", "cat", str(p)], capture_output=True, timeout=5)
+            r = subprocess.run(["sudo", "-n", str(UMA_HELPER), "read", str(p)],
+                               capture_output=True, timeout=5)
             return r.stdout if r.returncode == 0 else None
         except Exception:
             return None
@@ -229,19 +261,16 @@ def write_setup_data(new_data: bytes, version: str | None = None) -> tuple[bool,
     payload = attrs + new_data
     try:
         _set_immutable(p, False)
-        p.write_bytes(payload)
-        return True, "ok"
-    except PermissionError:
         try:
-            r = subprocess.run(["sudo", "-n", "tee", str(p)], input=payload,
-                                capture_output=True, timeout=10)
-            return (r.returncode == 0), (r.stderr.decode(errors="replace") if r.returncode else "ok")
-        except Exception as e:
-            return False, str(e)
+            p.write_bytes(payload)
+            return True, "ok"
+        finally:
+            _set_immutable(p, True)
+    except PermissionError:
+        # Plugin en user : écriture directe impossible → helper root sudoers
+        return _helper_write(p, payload)
     except Exception as e:
         return False, str(e)
-    finally:
-        _set_immutable(p, True)
 
 
 def _encode(value: int, width: int) -> bytes:
@@ -310,6 +339,7 @@ def get_status() -> dict:
         "profile_known": version in BIOS_PROFILES,
         "profile_ready": ready,
         "setup_variable_found": find_setup_variable(version) is not None,
+        "helper_ok": helper_available(),
         "layout_ok": ok_layout,
         "layout_detail": layout_msg,
         "current": _decode_current(),
@@ -339,9 +369,15 @@ def restore_backup(backup_path: Path) -> dict:
     raw = backup_path.read_bytes()
     try:
         _set_immutable(p, False)
-        p.write_bytes(raw)
-        return {"ok": True, "reboot_required": True}
+        try:
+            p.write_bytes(raw)
+            return {"ok": True, "reboot_required": True}
+        finally:
+            _set_immutable(p, True)
+    except PermissionError:
+        ok, msg = _helper_write(p, raw)
+        if ok:
+            return {"ok": True, "reboot_required": True}
+        return {"ok": False, "error": f"Restauration échouée: {msg}"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-    finally:
-        _set_immutable(p, True)
