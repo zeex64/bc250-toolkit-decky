@@ -76,7 +76,7 @@ The plugin automatically detects the Steam interface language:
 Manual installation:
 
 ```bash
-git clone https://github.com/Necrosiak/bc250-toolkit-decky.git \
+sudo git clone https://github.com/zeex64/bc250-toolkit-decky.git \
   ~/homebrew/plugins/BC250-Toolkit
 sudo systemctl restart plugin_loader
 ```
